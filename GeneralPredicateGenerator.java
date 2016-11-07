@@ -136,7 +136,7 @@ public class GeneralPredicateGenerator {
 	    //String wp2 = "Debby and Carol combined the lemon candy they had to get 74 pieces of candy. If Debby had 34 pieces of candy, how many pieces of candy did Carol have?";
 	    //String vector2 = "0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t1\t0\t0\t0\t0\t0\t0\t0\t0\t?\n";
 	    //System.out.println(generatePredicates(wp2, pipeline, vector2));
-	    String wp3 = "Debby and Carol combined the candy . Debby and Carol had to get 74 pieces of candy . Debby had 34 pieces of candy . how many pieces of candy did Carol have .";
+	    String wp3 = "Ruth put 2 apples in a basket";
 	    wp3 = wp3.replaceAll(" \\.", "\\.");
 	    wp3 = ExtractPhrases.extractPhrases(wp3, pipeline);
 	    System.out.println(wp3);
