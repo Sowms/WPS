@@ -4,7 +4,6 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Properties;
 
 import edu.stanford.nlp.pipeline.StanfordCoreNLP;
@@ -12,18 +11,12 @@ import jpl.Atom;
 import jpl.Compound;
 import jpl.Query;
 import jpl.Term;
-import jpl.Util;
 import jpl.Variable;
 
 
 public class PrologInterface {
 	
-	private static String parseQuery(String query) {
-		String ans = "";
-		
-		return ans;
-	}
-
+	
 	public static String getAnswer(String program, String query) throws IOException {
 		String ans = "";
 		String p = program;
@@ -43,14 +36,11 @@ public class PrologInterface {
 	    
 		Query q1 = new Query("consult('problem.pl')");
 	    System.out.println( "consult " + (q1.hasSolution() ? "succeeded" : "failed"));
-	    Query q4 = new Query(new Compound("entity", new Term[] {new Atom("question"), new Variable("Y")}));
+	    Query q4 = new Query(new Compound("answer", new Term[] {new Atom("question"), new Variable("X")}));
 	    //Query q4 = new Query(Util.textToTerm(query));
 	    if (q4.hasMoreSolutions()) {
-	    	String match1 = q4.nextSolution().get("Y").toString();
-	    	Query q2 = new Query(new Compound("value", new Term[] {new Atom(match1), new Variable("Y")}));
-	    	if (q2.hasMoreSolutions()) {
-	    		ans = q2.nextSolution().get("Y").toString();
-	    	}
+	    	String match1 = q4.nextSolution().get("X").toString();
+	    	ans = match1;
 	    }
     	return ans;
 	}
@@ -60,12 +50,14 @@ public class PrologInterface {
 		Properties props = new Properties();
 	    props.put("annotators", "tokenize, ssplit, pos, lemma, ner,parse,dcoref");
 	    StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
-		String wp3 = "Debby and Carol combined the candy . Debby and Carol had to get 74 pieces of candy . Debby had 34 pieces of candy . how many pieces of candy did Carol have .";
+		String wp3 = "Anne has 5 dolls and Barbara has 6 balls. How many toys do they have altogether?";
+		wp3 = SchemaIdentifier.coref(wp3, pipeline);
 	    wp3 = wp3.replaceAll(" \\.", "\\.");
 	    wp3 = ExtractPhrases.extractPhrases(wp3, pipeline);
 	    System.out.println(wp3);
 	    program = GeneralPredicateGenerator.generatePredicates(wp3, pipeline);
 	    program = program + GroupPredicateGenerator.getGroupPredicates(wp3, pipeline);
+	    program = program + "class(a,b).\n";
 	    query = "entity(question,X)";
 		System.out.println(getAnswer(program, query));
 	}

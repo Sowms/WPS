@@ -16,11 +16,9 @@ public class ExtractPhrases {
 		Properties props = new Properties();
 	    props.put("annotators", "tokenize, ssplit, pos, lemma, ner,parse,dcoref");
 	    StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
-	    String wordProblem = "Debby and Carol combined the candy . Debby and Carol had to get 74 pieces of candy . Debby had 34 pieces of candy . how many pieces of candy did Carol have .";
+	    String wordProblem = "Joan found 6 seashells and Jessica found 8 seashells on the beach . How many seashells did they find together ? ";
 	    wordProblem = wordProblem.replaceAll(" \\.", "\\.");
 	    System.out.println(extractPhrases(wordProblem, pipeline));
-		wordProblem = "Amy had 26 music files and 36 video files on her flash drive. If she deleted 48 of the files, how many files were still on her flash drive?";
-		System.out.println(extractPhrases(wordProblem, pipeline));
 		
 	}
 
@@ -33,7 +31,7 @@ public class ExtractPhrases {
 		List<CoreMap> sentences = document.get(SentencesAnnotation.class);
 		for (CoreMap sentence : sentences) {
 			Tree tree = sentence.get(TreeAnnotation.class);
-			//System.out.println(tree);
+			System.out.println(tree);
 			for (Tree subtree: tree) {
 				if(subtree.label().value().equals("S")) {
 					String yield = subtree.yieldWords().toString().replaceAll(", "," ");

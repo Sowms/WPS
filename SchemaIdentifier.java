@@ -261,7 +261,7 @@ public class SchemaIdentifier {
 		}
 		return commonNouns;
 	}
-	public static String getVector(String wordProblem, StanfordCoreNLP pipeline) {
+	public static String getVector(String wordProblem, StanfordCoreNLP pipeline) throws IOException {
 		String ans = "";
 		//number preprocessing
 		wordProblem = convertNumberNames(wordProblem, pipeline);
@@ -320,6 +320,19 @@ public class SchemaIdentifier {
 	  		}
 	  		boolean wordNetFlag = false;
 	  		//LinkedHashSet<String> commonNouns = (LinkedHashSet<String>) getCommonNouns(wordProblem,pipeline);
+	  		if (!classFlag) {
+	  			for (String entity1 : entities) {
+	  				for (String entity2 : entities) {
+	  					if (!entity1.equals(entity2)) {
+	  						if (IsATester.isA(entity1, entity2)) {
+	  							ans =  ans + "1\t";
+	  							classFlag = true;
+	  							break;
+	  						}
+	  					}
+	  				}
+	  			}
+	  		}
 	  		if (!classFlag) {
 	  			for (String entity1 : entities) {
 	  				for (String entity2 : entities) {
