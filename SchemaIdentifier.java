@@ -18,9 +18,13 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
-import edu.stanford.nlp.dcoref.CorefChain;
-import edu.stanford.nlp.dcoref.CorefChain.CorefMention;
-import edu.stanford.nlp.dcoref.CorefCoreAnnotations.CorefChainAnnotation;
+import edu.stanford.nlp.coref.CorefCoreAnnotations;
+import edu.stanford.nlp.coref.CorefCoreAnnotations.CorefChainAnnotation;
+import edu.stanford.nlp.coref.data.CorefChain;
+import edu.stanford.nlp.coref.data.CorefChain.CorefMention;
+import edu.stanford.nlp.coref.data.Mention;
+import edu.stanford.nlp.international.Language;
+import edu.stanford.nlp.ling.CoreAnnotations;
 import edu.stanford.nlp.ling.CoreAnnotations.TextAnnotation;
 import edu.stanford.nlp.ling.CoreLabel;
 import edu.stanford.nlp.ling.CoreAnnotations.LemmaAnnotation;
@@ -28,12 +32,14 @@ import edu.stanford.nlp.ling.CoreAnnotations.PartOfSpeechAnnotation;
 import edu.stanford.nlp.ling.CoreAnnotations.SentencesAnnotation;
 import edu.stanford.nlp.ling.CoreAnnotations.TokensAnnotation;
 import edu.stanford.nlp.ling.IndexedWord;
+import edu.stanford.nlp.parser.nndep.DependencyParser;
 import edu.stanford.nlp.pipeline.Annotation;
 import edu.stanford.nlp.pipeline.StanfordCoreNLP;
 import edu.stanford.nlp.semgraph.SemanticGraph;
 import edu.stanford.nlp.semgraph.SemanticGraphCoreAnnotations.CollapsedCCProcessedDependenciesAnnotation;
 import edu.stanford.nlp.semgraph.SemanticGraphEdge;
 import edu.stanford.nlp.trees.GrammaticalRelation;
+import edu.stanford.nlp.trees.GrammaticalStructure;
 import edu.stanford.nlp.util.CoreMap;
 import weka.classifiers.functions.MultilayerPerceptron;
 import weka.core.Instances;
@@ -206,14 +212,22 @@ public class SchemaIdentifier {
 		}
 		return false;
 	}
-	public static Set<String> getEntities(String wordProblem, StanfordCoreNLP pipeline) {
+	public static Set<String> getEntities(String wordProblem, StanfordCoreNLP pipeline, DependencyParser parser) {
 		Set<String> entities = new LinkedHashSet<>();
 		Annotation document = new Annotation(wordProblem);
 		pipeline.annotate(document);
 		List<CoreMap> sentences = document.get(SentencesAnnotation.class);
+	
 		for (CoreMap sentence : sentences) {
-			SemanticGraph dependencies = sentence.get(CollapsedCCProcessedDependenciesAnnotation.class);
-			List<SemanticGraphEdge> numEdges = dependencies.findAllRelns(GrammaticalRelation.valueOf("num"));
+			SemanticGraph dependencies = new SemanticGraph(parser.predict(sentence).typedDependencies());
+			GrammaticalRelation r = null;
+			for (SemanticGraphEdge e : dependencies.edgeListSorted()) {
+				if (e.getRelation().toString().equals("nummod")) {
+					r = e.getRelation();
+					break;
+				}
+			}
+			List<SemanticGraphEdge> numEdges = dependencies.findAllRelns(r);
 			for (SemanticGraphEdge edge : numEdges) {
 				IndexedWord entity = edge.getGovernor();
 				Set<IndexedWord> desc = dependencies.descendants(entity);
@@ -227,14 +241,22 @@ public class SchemaIdentifier {
 		}
 		return entities;
 	}
-	public static Set<String> getAgents(String wordProblem, StanfordCoreNLP pipeline) {
+	public static Set<String> getAgents(String wordProblem, StanfordCoreNLP pipeline, DependencyParser parser) {
 		Set<String> agents = new LinkedHashSet<>();
 		Annotation document = new Annotation(wordProblem);
 		pipeline.annotate(document);
 		List<CoreMap> sentences = document.get(SentencesAnnotation.class);
+		
 		for (CoreMap sentence : sentences) {
-			SemanticGraph dependencies = sentence.get(CollapsedCCProcessedDependenciesAnnotation.class);
-			List<SemanticGraphEdge> nsubjEdges = dependencies.findAllRelns(GrammaticalRelation.valueOf("nsubj"));
+			SemanticGraph dependencies = new SemanticGraph(parser.predict(sentence).typedDependencies());
+			GrammaticalRelation r = null;
+			for (SemanticGraphEdge e : dependencies.edgeListSorted()) {
+				if (e.getRelation().toString().equals("nsubj")) {
+					r = e.getRelation();
+					break;
+				}
+			}
+			List<SemanticGraphEdge> nsubjEdges = dependencies.findAllRelns(r);
 			for (SemanticGraphEdge edge : nsubjEdges) {
 				if (edge.getDependent().tag().contains("NN") && !edge.getDependent().tag().equals("NNS"))
 					agents.add(edge.getDependent().lemma());
@@ -245,6 +267,7 @@ public class SchemaIdentifier {
 					agents.add(edge.getDependent().lemma());
 			}
 		}
+//		System.exit(0);
 		return agents;
 	}
 	public static Set<String> getCommonNouns(String wordProblem, StanfordCoreNLP pipeline) {
@@ -261,7 +284,7 @@ public class SchemaIdentifier {
 		}
 		return commonNouns;
 	}
-	public static String getVector(String wordProblem, StanfordCoreNLP pipeline) throws IOException {
+	public static String getVector(String wordProblem, StanfordCoreNLP pipeline, DependencyParser parser) throws IOException {
 		String ans = "";
 		//number preprocessing
 		wordProblem = convertNumberNames(wordProblem, pipeline);
@@ -280,6 +303,7 @@ public class SchemaIdentifier {
 	    		String pos = token.tag();
 	    		String lemma = token.get(LemmaAnnotation.class);
 	    		if (pos.contains("VB")) {
+	    			System.out.println(lemma + pos);
 	    			if (pos.equals("VBD") || pos.equals("VBN"))
 	    				tenses.add("past");
 	    			else
@@ -287,25 +311,29 @@ public class SchemaIdentifier {
 	    			String word = lemma;
 	    			if (!(word.equals("have") || word.equals("has") || word.equals("does") || word.equals("is") || word.equals("be") || word.equals("do") || word.equals("did") || word.equals("had") || word.equals("are")))
 	    				isChange = true;
-	    				break;
+	    			break;
 	    			}
+	    			
 	    		}
-	    		if (isChange)
-	    		break;
+	    		//if (isChange)
+	    		//break;
 	    }
 	    if (isChange)
 			ans = ans + "1\t";
 		else
 			ans = ans + "0\t";
 	    //class
-	    LinkedHashSet<String> entities = (LinkedHashSet<String>) getEntities(wordProblem,pipeline);
+	    LinkedHashSet<String> entities = (LinkedHashSet<String>) getEntities(wordProblem,pipeline, parser);
 	    //antonyms & requirement
 	  	if (isAntonym(wordProblem) || wordProblem.contains("require") || wordProblem.contains("need") || wordProblem.contains("want"))
 	  		ans = ans + "1\t";
 	  	else {
 	  		boolean classFlag = false;
-	  		for (String entity1 : entities) {
-	  			for (String entity2 : entities) {
+	  		LinkedHashSet<String> entities1 = (LinkedHashSet<String>) getCommonNouns(wordProblem,pipeline);
+	  		LinkedHashSet<String> commonNouns = (LinkedHashSet<String>) getCommonNouns(wordProblem,pipeline);
+	  		entities1.addAll(entities);
+	  		for (String entity1 : entities1) {
+	  			for (String entity2 : entities1) {
 	  				if (!entity1.equals(entity2)) {
 	  					if (entity1.contains(entity2) || entity2.contains(entity1)) {
 	  						System.out.println(entity1 + "|" + entity2);
@@ -319,10 +347,10 @@ public class SchemaIdentifier {
 	  				break;
 	  		}
 	  		boolean wordNetFlag = false;
-	  		//LinkedHashSet<String> commonNouns = (LinkedHashSet<String>) getCommonNouns(wordProblem,pipeline);
+	  		
 	  		if (!classFlag) {
-	  			for (String entity1 : entities) {
-	  				for (String entity2 : entities) {
+	  			for (String entity1 : commonNouns) {
+	  				for (String entity2 : commonNouns) {
 	  					if (!entity1.equals(entity2)) {
 	  						if (IsATester.isA(entity1, entity2)) {
 	  							ans =  ans + "1\t";
@@ -331,6 +359,8 @@ public class SchemaIdentifier {
 	  						}
 	  					}
 	  				}
+	  				if (classFlag)
+	  					break;
 	  			}
 	  		}
 	  		if (!classFlag) {
@@ -352,7 +382,7 @@ public class SchemaIdentifier {
 	  				ans =  ans + "0\t";
 	  		}
 	  	}
-	    //relation - yet to be implemented
+	  	//relation - yet to be implemented
 	    ans = ans + "0\t";
 	    //relation 2
 	    boolean unitFlag = false;
@@ -374,7 +404,7 @@ public class SchemaIdentifier {
 	    //causality - yet to be implemented
 	    ans = ans + "0\t";
 	    //multiple agents
-	    LinkedHashSet<String> agents = (LinkedHashSet<String>) getAgents(wordProblem,pipeline);
+	    LinkedHashSet<String> agents = (LinkedHashSet<String>) getAgents(wordProblem,pipeline, parser);
 	    if (agents.size() != 1)
 	    	ans = ans + "1\t";
 	    else
@@ -411,7 +441,7 @@ public class SchemaIdentifier {
 		else
 			ans = ans + "0\t";
 		//more/less
-		if (wordProblem.contains("more") || wordProblem.contains("less") || wordProblem.contains("er than"))
+		if (wordProblem.contains("more") || wordProblem.contains("less") || wordProblem.contains("er "))
 			ans = ans + "1\t";
 		else
 			ans = ans + "0\t";
@@ -431,6 +461,7 @@ public class SchemaIdentifier {
 		else
 			ans = ans + "0\t";
 		//changeInTime
+		System.out.println(tenses);
 		if (tenses.size() != 1)
 			ans = ans + "1\t";
 		else
@@ -445,10 +476,11 @@ public class SchemaIdentifier {
 			in = new BufferedReader(new FileReader("unit.txt"));
 			String line = "";
 			while ((line = in.readLine()) != null) {
-				if (line.startsWith(unit)) {
+				if (line.contains(unit)) {
 					in.close();
 					return true;
 				}
+				
 			}
 			in.close();
 		} catch (IOException e) {
@@ -488,8 +520,9 @@ public class SchemaIdentifier {
 	}
 	public static void main(String[] args) throws Exception {
 		Properties props = new Properties();
-	    props.put("annotators", "tokenize, ssplit, pos, lemma, ner,parse,dcoref");
-	    StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
+		props.setProperty("annotators", "tokenize, ssplit, pos, depparse, lemma, ner, parse, mention, coref");
+		props.setProperty("ner.useSUTime", "false");
+		StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
 	    DataSource source = new DataSource("schema.csv");
 		Instances train = source.getDataSet();
 		// setting class attribute
@@ -500,18 +533,24 @@ public class SchemaIdentifier {
 		MultilayerPerceptron tree = new MultilayerPerceptron();         // new instance of tree
 		tree.setOptions(options);     // set the options
 		tree.buildClassifier(train);
-		String test = getVector("Jason joined his school 's band . He bought a flute for $ 142.46 , a music tool for $ 8.89 , and a song book for $ 7 . How much did Jason spend at the music store ?", pipeline);
-		System.out.println(identifySchema(test,tree)+"|"+"GROUP");
-		String p1 = getVector("A class has 70 students. If 65 students are present, how many are absent?",pipeline);
-		String p2 = getVector("It rained 70 cm on Tuesday and 60 cm on Wednesday. How many more cm of rainfall was there on Tuesday?",pipeline);
-		String p3 = getVector("John has 5 red apples. He gave 3 apples to Mary. How many apples does he have now?",pipeline);
-		String p4 = getVector("A town has three post offices. In each post office there are five workers. How many workers do the post offices have in total?", pipeline);
-		String p5 = getVector("There are 4 dolls and 6 balls. How many toys are there?", pipeline);
-		String p6 = getVector("For Halloween Debby and her sister combined the candy they received. Debby had 32 pieces of candy while her sister had 42. If they ate 35 pieces the first night, how many pieces do they have left?", pipeline);
-		String p7 = getVector("Sara grew 4 onions , Sally grew 5 onions , and Fred grew 9 onions . How many onions did they grow in all ?", pipeline); 
-		String p8 = getVector("Sara ate 5 apples yesterday. She ate 4 apples today. How many apples did she eat?", pipeline);
-		String p9 = getVector("John walked 5 km and then ran 1 km. How much did he travel?", pipeline);
-		System.out.println(identifySchema(p1,tree)+"|"+"GROUP");
+		//String test = getVector("Jason joined his school 's band . He bought a flute for $ 142.46 , a music tool for $ 8.89 , and a song book for $ 7 . How much did Jason spend at the music store ?", pipeline);
+		//System.out.println(identifySchema(test,tree)+"|"+"GROUP");
+		String modelPath = DependencyParser.DEFAULT_MODEL;
+	    //String taggerPath = "edu/stanford/nlp/models/pos-tagger/english-left3words/english-left3words-distsim.tagger";
+	    DependencyParser parser = DependencyParser.loadFromModelFile(modelPath);
+
+		/*String p1 = getVector("A class has 70 students. If 65 students are present, how many are absent?",pipeline, parser);
+		String p2 = getVector("It rained 70 cm on Tuesday and 60 cm on Wednesday. How many more cm of rainfall was there on Tuesday?",pipeline, parser);
+		String p3 = getVector("John has 5 red apples. He gave 3 apples to Mary. How many apples does he have now?",pipeline,parser);
+		String p4 = getVector("A town has three post offices. In each post office there are five workers. How many workers do the post offices have in total?", pipeline,parser);
+		String p5 = getVector("There are 4 dolls and 6 balls. How many toys are there?", pipeline,parser);
+		String p6 = getVector("For Halloween Debby and her sister combined the candy they received. Debby had 32 pieces of candy while her sister had 42. If they ate 35 pieces the first night, how many pieces do they have left?", pipeline, parser);
+		String p7 = getVector("Sara grew 4 onions , Sally grew 5 onions , and Fred grew 9 onions . How many onions did they grow in all ?", pipeline, parser); 
+		String p8 = getVector("Sara ate 5 apples yesterday. She ate 4 apples today. How many apples did she eat?", pipeline, parser);
+		String p9 = getVector("John walked 5 km and then ran 1 km. How much did he travel?", pipeline, parser);*/
+		//String p10 = getVector("John had 5 apples altogether.He gave 2 apples to Mary. How many apples does he have now?", pipeline, parser);
+		String p10 = getVector("Stanley ran 0.4 mile and walked 0.2 mile . How much farther did Stanley run than walk ? ", pipeline, parser);
+		/*System.out.println(identifySchema(p1,tree)+"|"+"GROUP");
 		System.out.println(identifySchema(p2,tree)+"|"+"COMPARE");
 		System.out.println(identifySchema(p3,tree)+"|"+"CHANGE");
 		System.out.println(identifySchema(p4,tree)+"|"+"VARY");
@@ -520,5 +559,7 @@ public class SchemaIdentifier {
 		System.out.println(identifySchema(p7,tree)+"|"+"GROUP");
 		System.out.println(identifySchema(p8,tree)+"|"+"GROUP");
 		System.out.println(identifySchema(p9,tree)+"|"+"GROUP");
+		System.out.println(identifySchema(p10,tree)+"|"+"CHANGE");*/
+		System.out.println(identifySchema(p10,tree)+"|"+"COMPARE");
 	}
 }

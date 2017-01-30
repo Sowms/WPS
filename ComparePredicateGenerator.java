@@ -18,9 +18,9 @@ import edu.stanford.nlp.trees.GrammaticalRelation;
 import edu.stanford.nlp.util.CoreMap;
 
 
-public class GroupPredicateGenerator {
+public class ComparePredicateGenerator {
 
-	public static String getGroupPredicates(String wordProblem, StanfordCoreNLP pipeline, DependencyParser parser) {
+	public static String getComparePredicates(String wordProblem, StanfordCoreNLP pipeline, DependencyParser parser) {
 		String ans = "";
 		//generate typing constraints
 		LinkedHashSet<String> entities = GeneralPredicateGenerator.entities;
@@ -34,15 +34,20 @@ public class GroupPredicateGenerator {
   			}
   		}
 		boolean qFlag = false;
+		String keyword = "";
 		//group information
 		Annotation document = new Annotation(wordProblem);
 		pipeline.annotate(document);
 		List<CoreMap> sentences = document.get(SentencesAnnotation.class);
 		CoreMap candidateSentence = null;
 		for (CoreMap sentence : sentences) {
-			if (sentence.toString().contains(" together ") || sentence.toString().contains("in all") || sentence.toString().contains(" combined ") || sentence.toString().contains(" total")) {
-				candidateSentence = sentence;
-				break;
+			List<CoreLabel> tokens = sentence.get(TokensAnnotation.class);
+			for (CoreLabel token: tokens) {
+				String pos = token.tag();
+				if (pos.contains("JJR") || pos.contains("RBR")) {
+					candidateSentence = sentence;
+					break;
+				}
 			}
 		}
 		if (candidateSentence == null) {
@@ -57,42 +62,119 @@ public class GroupPredicateGenerator {
 				}
 			}
 		}
+		System.out.println(candidateSentence);
 		if (candidateSentence == null) {
 			candidateSentence = sentences.get(sentences.size() - 1);
 		}
 		List<CoreLabel> tokens = candidateSentence.get(TokensAnnotation.class);
 		for (CoreLabel token: tokens) {
 			String pos = token.tag();
+			if (pos.contains("RBR") || pos.contains("JJR"))
+				keyword = token.originalText();
+			if (token.originalText().equals("more") || token.originalText().equals("less"))
+				keyword = token.originalText();
+			
 			if (pos.contains("W")) {
 				qFlag = true;
+				//break;
+			}
+		}
+		ans = ans + "compare(c).\n";
+		ans = ans + "keyword(c,"+keyword+").\n";
+		SemanticGraph dependencies = new SemanticGraph(parser.predict(candidateSentence).typedDependencies());
+		GrammaticalRelation r = null;
+		for (SemanticGraphEdge e : dependencies.edgeListSorted()) {
+			if (e.getRelation().toString().equals("nummod")) {
+				r = e.getRelation();
 				break;
 			}
 		}
-		ans = ans + "group(g).\n";
-		SemanticGraph dependencies = new SemanticGraph(parser.predict(candidateSentence).typedDependencies());
-		GrammaticalRelation r = null;
+		List<SemanticGraphEdge> numEdges = dependencies.findAllRelns(r);
+		GrammaticalRelation amod = null;
+		for (SemanticGraphEdge e : dependencies.edgeListSorted()) {
+			if (e.getRelation().toString().equals("amod")) {
+				amod = e.getRelation();
+				break;
+			}
+		}
+		GrammaticalRelation nn = null;
+		for (SemanticGraphEdge e : dependencies.edgeListSorted()) {
+			if (e.getRelation().toString().equals("nn")) {
+				nn = e.getRelation();
+				break;
+			}
+		}
+		GrammaticalRelation conjand = null;
+		for (SemanticGraphEdge e : dependencies.edgeListSorted()) {
+			if (e.getRelation().toString().equals("conj_and")) {
+				conjand = e.getRelation();
+				break;
+			}
+		}
+		System.out.println(numEdges);
+		for (SemanticGraphEdge edge : numEdges) {
+			String pos = edge.getGovernor().tag(); 
+			String lemma = edge.getGovernor().lemma();
+			if (pos.contains("NN") || pos.equals("JJ")) {
+				Set<IndexedWord> desc = dependencies.descendants(edge.getGovernor());
+				String entityName = lemma;
+				for (IndexedWord word : desc) {
+					//System.out.println("aa" + word.lemma());
+					if (word.tag().equals("JJ") || word.tag().contains("NN")) { //need to generalize
+						if (dependencies.getEdge(edge.getGovernor(), word) == null)
+							continue;
+						//System.out.println(dependencies.getEdge(edge.getGovernor(), word) + "|" + edge.getGovernor() + "|" + word);
+						boolean cond1 = dependencies.getEdge(edge.getGovernor(), word).getRelation().equals(amod);
+						boolean cond2 = dependencies.getEdge(edge.getGovernor(), word).getRelation().equals(nn);
+						boolean cond3 = dependencies.getEdge(edge.getGovernor(), word).getRelation().equals(conjand);
+						if (cond1 || cond2)
+							if (!word.lemma().equals("many") && !word.lemma().equals(entityName)) {
+								entityName = word.lemma() + "_" + entityName;
+								break;
+							}
+						if (cond3) {
+							if (!word.lemma().equals(entityName)) {
+								entityName = entityName + "_" + word.lemma();
+								break;
+							}
+						}
+					}
+				}
+				ans = ans + "entType(c, " + entityName + ").\n";
+				ans = ans + "cValue(c, " + edge.getDependent().originalText() + ").\n";
+				
+			}
+			
+		}
 		for (SemanticGraphEdge e : dependencies.edgeListSorted()) {
 			if (e.getRelation().toString().equals("nsubj")) {
 				r = e.getRelation();
 				break;
 			}
 		}
+		
 		List<SemanticGraphEdge> nsubjEdges = dependencies.findAllRelns(r);
 		for (SemanticGraphEdge edge : nsubjEdges) {
 			if (edge.getDependent().tag().contains("NN") && !edge.getDependent().tag().equals("NNS")) {
-				ans = ans + "agent(g, "+ edge.getDependent().originalText().toLowerCase() + ").\n";
+				ans = ans + "agent(c, "+ edge.getDependent().originalText().toLowerCase() + ").\n";
 			}
 		}
 		tokens = candidateSentence.get(TokensAnnotation.class);
 		for (CoreLabel token: tokens) {
 			String pos = token.tag();
 			if (pos.contains("VB")) {
-				ans = ans + "verb(g, " + token.lemma().toLowerCase() + ").\n";
+				ans = ans + "verb(c, " + token.lemma().toLowerCase() + ").\n";
 				//break;
 			}
 		}
 		boolean entFlag = false;
-		List<SemanticGraphEdge> dobjEdges = dependencies.findAllRelns(GrammaticalRelation.valueOf("dobj"));
+		for (SemanticGraphEdge e : dependencies.edgeListSorted()) {
+			if (e.getRelation().toString().equals("dobj")) {
+				r = e.getRelation();
+				break;
+			}
+		}
+		List<SemanticGraphEdge> dobjEdges = dependencies.findAllRelns(r);
 		for (SemanticGraphEdge edge : dobjEdges) {
 			String pos = edge.getDependent().tag(); 
 			String lemma = edge.getDependent().lemma();
@@ -117,34 +199,35 @@ public class GroupPredicateGenerator {
 					}
 				}
 				if (!ans.contains("spend")) {
-					ans = ans + "entType(g, " + entityName + ").\n";
+					ans = ans + "entType(c, " + entityName + ").\n";
 					entFlag = true;
 				}
 			}
 		}
-		if (!entFlag && !ans.contains("spend")) {
+		if (!entFlag && !ans.contains("spend") && numEdges.isEmpty()) {
 			for (String entity : entities) {
 				String check = entity.replaceAll("_", " ");
 				System.out.println(check + candidateSentence.toString());
 				if (candidateSentence.toString().contains(check)) {
-					ans = ans + "entType(g, " + entity + ").\n";
+					ans = ans + "entType(c, " + entity + ").\n";
 				}
 			}
 		}
 		List<SemanticGraphEdge> allEdges = dependencies.edgeListSorted();
 		for (SemanticGraphEdge edge : allEdges) {
-			if (edge.getRelation().getShortName().contains("prep") && edge.getDependent().tag().equals("NNP"))
-				ans = ans + "secAgent(g, " + edge.getDependent().originalText().toLowerCase() + ").\n";
+			if (edge.getDependent().tag().equals("NNP") && !ans.contains(edge.getDependent().originalText().toLowerCase()))
+				ans = ans + "secAgent(c, " + edge.getDependent().originalText().toLowerCase() + ").\n";
 			if (edge.getRelation().toString().contains("prep_on") || edge.getRelation().toString().contains("prep_in") || edge.getRelation().toString().contains("prep_at"))
-				ans = ans + "loc(g, " + edge.getDependent().originalText().toLowerCase() + ").\n";
+				ans = ans + "loc(c, " + edge.getDependent().originalText().toLowerCase() + ").\n";
 		}
 		
 		//if (candidateSentence.toString().contains("spend"))
 			//ans = ans + "entType(g, dollar).\n";
-		//if (qFlag) {
-			ans = ans + "value(Ent, Y) :- entity(question,Ent), gValue(g, Y).\n";
-			ans = ans + "entType(g, Y) :- entity(question,Ent), type(Ent, Y).\n";
-		//}
+		ans = ans + "value(Ent, Y) :- entity(question,Ent), cValue(c, Y).\n";
+		if (numEdges.isEmpty()) {
+			
+			ans = ans + "entType(c, Y) :- entity(question,Ent), type(Ent, Y).\n";
+		}
 		
 		return ans;
 	}
@@ -157,13 +240,13 @@ public class GroupPredicateGenerator {
 	    //String taggerPath = "edu/stanford/nlp/models/pos-tagger/english-left3words/english-left3words-distsim.tagger";
 	    DependencyParser parser = DependencyParser.loadFromModelFile(modelPath);
 
-		String wp3 = "Anne has 5 dolls and Barbara has 6 balls.   How many toys do they have altogether?";
+		String wp3 = "Nicole found an orange caterpillar and a green caterpillar in her backyard . The green caterpillar was 3 inches long and the orange caterpillar was 1.1666666666666667 inches long . How much longer was the green caterpillar than the orange caterpillar ? ";
 	    wp3 = wp3.replaceAll(" \\.", "\\.");
 	    wp3 = ExtractPhrases.extractPhrases(wp3, pipeline);
 	    wp3 = SchemaIdentifier.coref(wp3, pipeline);
 	    System.out.println(wp3);
 	    System.out.println(GeneralPredicateGenerator.generatePredicates(wp3, pipeline,parser));
-	    System.out.println(getGroupPredicates(wp3, pipeline,parser));
+	    System.out.println(getComparePredicates(wp3, pipeline,parser));
 		
 	}
 }

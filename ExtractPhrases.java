@@ -14,9 +14,10 @@ public class ExtractPhrases {
 	public static void main(String[] args) {
 		// TODO Auto-generated method stub
 		Properties props = new Properties();
-	    props.put("annotators", "tokenize, ssplit, pos, lemma, ner,parse,dcoref");
+	    props.setProperty("annotators", "tokenize, ssplit, pos, depparse, lemma, ner, parse, mention, coref");
+	    props.setProperty("ner.useSUTime", "false");
 	    StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
-	    String wordProblem = "Joan found 6 seashells and Jessica found 8 seashells on the beach . How many seashells did they find together ? ";
+	    String wordProblem = "Anne has 5 dolls and Barbara has 6 balls. How many toys do they have altogether?";
 	    wordProblem = wordProblem.replaceAll(" \\.", "\\.");
 	    System.out.println(extractPhrases(wordProblem, pipeline));
 		

@@ -5,6 +5,7 @@ import java.util.List;
 import java.util.Properties;
 
 import edu.stanford.nlp.ling.CoreAnnotations.SentencesAnnotation;
+import edu.stanford.nlp.parser.nndep.DependencyParser;
 import edu.stanford.nlp.pipeline.Annotation;
 import edu.stanford.nlp.pipeline.StanfordCoreNLP;
 import edu.stanford.nlp.semgraph.SemanticGraph;
@@ -19,8 +20,12 @@ public class FixedRelationTester {
 		Annotation document = new Annotation(wordProblem);
 		pipeline.annotate(document);
 		List<CoreMap> sentences = document.get(SentencesAnnotation.class);
+		String modelPath = DependencyParser.DEFAULT_MODEL;
+	    //String taggerPath = "edu/stanford/nlp/models/pos-tagger/english-left3words/english-left3words-distsim.tagger";
+	    DependencyParser parser = DependencyParser.loadFromModelFile(modelPath);
+
 		for (CoreMap sentence : sentences) {
-			SemanticGraph dependencies = sentence.get(CollapsedCCProcessedDependenciesAnnotation.class);
+			SemanticGraph dependencies = new SemanticGraph(parser.predict(sentence).typedDependencies());
 			List<SemanticGraphEdge> allEdges = dependencies.edgeListSorted();
 			for (SemanticGraphEdge edge : allEdges) {
 				if (edge.getRelation().toString().contains("dep") && (edge.getDependent().tag().contains("IN") || edge.getDependent().tag().contains("DT")))

@@ -6,6 +6,10 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.util.Properties;
 
+import weka.classifiers.functions.MultilayerPerceptron;
+import weka.core.Instances;
+import weka.core.converters.ConverterUtils.DataSource;
+import edu.stanford.nlp.parser.nndep.DependencyParser;
 import edu.stanford.nlp.pipeline.StanfordCoreNLP;
 import jpl.Atom;
 import jpl.Compound;
@@ -44,21 +48,39 @@ public class PrologInterface {
 	    }
     	return ans;
 	}
-	public static void main(String[] args) throws IOException {
+	public static void main(String[] args) throws Exception {
 		String program = "";
 		String query = "";
 		Properties props = new Properties();
-	    props.put("annotators", "tokenize, ssplit, pos, lemma, ner,parse,dcoref");
+	    props.setProperty("annotators", "tokenize, ssplit, pos, depparse, lemma, ner, parse, mention, coref");
+	    props.setProperty("ner.useSUTime", "false");
 	    StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
-		String wp3 = "Anne has 5 dolls and Barbara has 6 balls. How many toys do they have altogether?";
-		wp3 = SchemaIdentifier.coref(wp3, pipeline);
+	    String modelPath = DependencyParser.DEFAULT_MODEL;
+	    //String taggerPath = "edu/stanford/nlp/models/pos-tagger/english-left3words/english-left3words-distsim.tagger";
+	    DependencyParser parser = DependencyParser.loadFromModelFile(modelPath);
+	    String wp3 = "Oscar had 5 blue balloons and 4 red ballons. How many balloons did he have?";
 	    wp3 = wp3.replaceAll(" \\.", "\\.");
 	    wp3 = ExtractPhrases.extractPhrases(wp3, pipeline);
+	    wp3 = SchemaIdentifier.coref(wp3, pipeline);
 	    System.out.println(wp3);
-	    program = GeneralPredicateGenerator.generatePredicates(wp3, pipeline);
-	    program = program + GroupPredicateGenerator.getGroupPredicates(wp3, pipeline);
+	    DataSource source = new DataSource("schema.csv");
+		Instances train = source.getDataSet();
+		// setting class attribute
+		train.setClassIndex(train.numAttributes() - 1);
+		String[] options = new String[2];
+		options[0] = "-H";            // hidden layers
+		options[1] = "33,33";
+		MultilayerPerceptron tree = new MultilayerPerceptron();         // new instance of tree
+		tree.setOptions(options);     // set the options
+		tree.buildClassifier(train);
+	    System.out.println(SchemaIdentifier.identifySchema(SchemaIdentifier.getVector(wp3, pipeline, parser), tree));
+	    program = GeneralPredicateGenerator.generatePredicates(wp3, pipeline, parser);
+	    program = program + GroupPredicateGenerator.getGroupPredicates(wp3, pipeline, parser);
 	    program = program + "class(a,b).\n";
+	    System.out.println(program);
 	    query = "entity(question,X)";
+		//String program = "answer(question,1).\n";
+		//String query = "";
 		System.out.println(getAnswer(program, query));
 	}
 }

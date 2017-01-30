@@ -10,9 +10,12 @@ import edu.stanford.nlp.ling.IndexedWord;
 import edu.stanford.nlp.ling.CoreAnnotations.LemmaAnnotation;
 import edu.stanford.nlp.ling.CoreAnnotations.SentencesAnnotation;
 import edu.stanford.nlp.ling.CoreAnnotations.TokensAnnotation;
+import edu.stanford.nlp.parser.nndep.DependencyParser;
 import edu.stanford.nlp.pipeline.Annotation;
 import edu.stanford.nlp.pipeline.StanfordCoreNLP;
 import edu.stanford.nlp.semgraph.SemanticGraph;
+import edu.stanford.nlp.semgraph.SemanticGraphCoreAnnotations.BasicDependenciesAnnotation;
+import edu.stanford.nlp.semgraph.SemanticGraphCoreAnnotations.EnhancedPlusPlusDependenciesAnnotation;
 import edu.stanford.nlp.semgraph.SemanticGraphEdge;
 import edu.stanford.nlp.semgraph.SemanticGraphCoreAnnotations.CollapsedCCProcessedDependenciesAnnotation;
 import edu.stanford.nlp.trees.GrammaticalRelation;
@@ -21,7 +24,7 @@ import edu.stanford.nlp.util.CoreMap;
 
 public class GeneralPredicateGenerator {
 	public static LinkedHashSet<String> entities = new LinkedHashSet<String>();
-	public static String generatePredicates(String wordProblem, StanfordCoreNLP pipeline) throws IOException {
+	public static String generatePredicates(String wordProblem, StanfordCoreNLP pipeline, DependencyParser parser) throws IOException {
 		String ans = "";
 		entities = new LinkedHashSet<String>();
 		Annotation document = new Annotation(wordProblem);
@@ -30,7 +33,7 @@ public class GeneralPredicateGenerator {
 		int factCounter = 1, eventCounter = 1, entCounter = 1, timeStep = 0;
 		String prevTense = "", curTense = "";
 		for (CoreMap sentence : sentences) {
-			SemanticGraph dependencies = sentence.get(CollapsedCCProcessedDependenciesAnnotation.class);
+			SemanticGraph dependencies = new SemanticGraph(parser.predict(sentence).typedDependencies());
 			String predicate = "";
 			String allPredicates = "";
 			List<CoreLabel> tokens = sentence.get(TokensAnnotation.class);
@@ -38,8 +41,10 @@ public class GeneralPredicateGenerator {
 	    		String pos = token.tag();
 	    		String lemma = token.get(LemmaAnnotation.class);
 	    		String word = token.originalText();
-	    		if (pos.contains("W"))
+	    		if (pos.contains("W")) {
 	    			predicate = "question";
+	    			timeStep += 10;
+	    		}
 	    		if (pos.contains("VB")) {
 	    			if (predicate.isEmpty()) {
 	    				if ((word.equals("have") || word.equals("has") || word.equals("does") || word.equals("is") || word.equals("be") || word.equals("do") || word.equals("did") || word.equals("had") || word.equals("are"))) {
@@ -67,21 +72,63 @@ public class GeneralPredicateGenerator {
 				time = timeStep + 10;
 				timeStep = time;
 			}
+			if (predicate.isEmpty()) {
+				predicate = "fact" + factCounter;
+				factCounter++;
+			}
 			if (predicate.contains("ev")) {
 				allPredicates = allPredicates + "happens(" + predicate + "," + time + ").\n";
 			}
-			else
+			else 
 				allPredicates = allPredicates + "holdsAt(" + predicate + "," + time + ").\n";
 			prevTense = curTense;
-			List<SemanticGraphEdge> nsubjEdges = dependencies.findAllRelns(GrammaticalRelation.valueOf("nsubj"));
+
+			GrammaticalRelation r = null;
+			for (SemanticGraphEdge e : dependencies.edgeListSorted()) {
+				if (e.getRelation().toString().equals("nsubj")) {
+					r = e.getRelation();
+					break;
+				}
+			}
+			List<SemanticGraphEdge> nsubjEdges = dependencies.findAllRelns(r);
+			
 			for (SemanticGraphEdge edge : nsubjEdges) {
 				if (edge.getDependent().tag().contains("NN") && !edge.getDependent().tag().equals("NNS")) {
 					allPredicates = allPredicates + "agent(" + predicate + ", "+ edge.getDependent().originalText().toLowerCase() + ").\n";
 				}
 			}
 			boolean entFlag = false;
-			List<SemanticGraphEdge> numEdges = dependencies.findAllRelns(GrammaticalRelation.valueOf("num"));
-			numEdges.addAll(dependencies.findAllRelns(GrammaticalRelation.valueOf("number")));
+			r = null;
+			System.out.println(dependencies);
+			for (SemanticGraphEdge e : dependencies.edgeListSorted()) {
+				if (e.getRelation().toString().equals("nummod")) {
+					r = e.getRelation();
+					break;
+				}
+			}
+			List<SemanticGraphEdge> numEdges = dependencies.findAllRelns(r);
+			GrammaticalRelation amod = null;
+			for (SemanticGraphEdge e : dependencies.edgeListSorted()) {
+				if (e.getRelation().toString().equals("amod")) {
+					amod = e.getRelation();
+					break;
+				}
+			}
+			GrammaticalRelation nn = null;
+			for (SemanticGraphEdge e : dependencies.edgeListSorted()) {
+				if (e.getRelation().toString().equals("nn")) {
+					nn = e.getRelation();
+					break;
+				}
+			}
+			GrammaticalRelation conjand = null;
+			for (SemanticGraphEdge e : dependencies.edgeListSorted()) {
+				if (e.getRelation().toString().equals("conj_and")) {
+					conjand = e.getRelation();
+					break;
+				}
+			}
+			System.out.println(numEdges);
 			for (SemanticGraphEdge edge : numEdges) {
 				String pos = edge.getGovernor().tag(); 
 				String lemma = edge.getGovernor().lemma();
@@ -95,9 +142,9 @@ public class GeneralPredicateGenerator {
 							if (dependencies.getEdge(edge.getGovernor(), word) == null)
 								continue;
 							//System.out.println(dependencies.getEdge(edge.getGovernor(), word) + "|" + edge.getGovernor() + "|" + word);
-							boolean cond1 = dependencies.getEdge(edge.getGovernor(), word).getRelation().equals(GrammaticalRelation.valueOf("amod"));
-							boolean cond2 = dependencies.getEdge(edge.getGovernor(), word).getRelation().equals(GrammaticalRelation.valueOf("nn"));
-							boolean cond3 = dependencies.getEdge(edge.getGovernor(), word).getRelation().equals(GrammaticalRelation.valueOf("conj_and"));
+							boolean cond1 = dependencies.getEdge(edge.getGovernor(), word).getRelation().equals(amod);
+							boolean cond2 = dependencies.getEdge(edge.getGovernor(), word).getRelation().equals(nn);
+							boolean cond3 = dependencies.getEdge(edge.getGovernor(), word).getRelation().equals(conjand);
 							if (cond1 || cond2)
 								if (!word.lemma().equals("many") && !word.lemma().equals(entityName)) {
 									entityName = word.lemma() + "_" + entityName;
@@ -132,7 +179,15 @@ public class GeneralPredicateGenerator {
 				}
 			}
 			if (!entFlag && !sentence.toString().contains("spend")) {
-				List<SemanticGraphEdge> dobjEdges = dependencies.findAllRelns(GrammaticalRelation.valueOf("dobj"));
+				r = null;
+				for (SemanticGraphEdge e : dependencies.edgeListSorted()) {
+					if (e.getRelation().toString().equals("dobj")) {
+						r = e.getRelation();
+						break;
+					}
+				}
+				
+				List<SemanticGraphEdge> dobjEdges = dependencies.findAllRelns(r);
 				for (SemanticGraphEdge edge : dobjEdges) {
 					String pos = edge.getDependent().tag(); 
 					String lemma = edge.getDependent().lemma();
@@ -224,23 +279,23 @@ public class GeneralPredicateGenerator {
 	
 	public static void main(String[] args) throws Exception {
 		Properties props = new Properties();
-	    props.put("annotators", "tokenize, ssplit, pos, lemma, ner,parse,dcoref");
+	    props.setProperty("annotators", "tokenize, ssplit, pos, depparse, lemma, ner, parse, mention, coref");
+	    props.setProperty("ner.useSUTime", "false");
 	    StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
+	    String modelPath = DependencyParser.DEFAULT_MODEL;
+	    //String taggerPath = "edu/stanford/nlp/models/pos-tagger/english-left3words/english-left3words-distsim.tagger";
+	    DependencyParser parser = DependencyParser.loadFromModelFile(modelPath);
 	    //String wp1 = "Sara ate 5 apples and 4 oranges yesterday. Sara ate 4 apples today. Sara kept 2 apples in a basket. How many apples did she eat?";
 	    //String vector1 = "0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t1\t0\t0\t0\t0\t0\t0\t0\t0\t?\n";
 	    //System.out.println(generatePredicates(wp1, pipeline, vector1));
 	    //String wp2 = "Debby and Carol combined the lemon candy they had to get 74 pieces of candy. If Debby had 34 pieces of candy, how many pieces of candy did Carol have?";
 	    //String vector2 = "0\t0\t0\t0\t0\t0\t0\t0\t0\t0\t1\t0\t0\t0\t0\t0\t0\t0\t0\t?\n";
 	    //System.out.println(generatePredicates(wp2, pipeline, vector2));
-	    String wp3 = "Mike bought some toys . He bought marbles for $ 9.05 , a football for $ 4.95 , and spent $ 6.52 on a baseball . In total , how much did Mike spend on toys ? ";
+	    String wp3 = "Stanley ran 0.4 mile and walked 0.2 mile . How much farther did Stanley run than walk ? ";
 	    wp3 = wp3.replaceAll(" \\.", "\\.");
 	    wp3 = ExtractPhrases.extractPhrases(wp3, pipeline);
 	    wp3 = SchemaIdentifier.coref(wp3, pipeline);
 	    System.out.println(wp3);
-	    System.out.println(generatePredicates(wp3, pipeline));
-	    
+	    System.out.println(generatePredicates(wp3, pipeline, parser));   
 	}
-
-	
-
 }

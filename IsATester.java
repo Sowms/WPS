@@ -15,7 +15,7 @@ public class IsATester {
 		return !(doc.toString().contains("not an assertion"));
 	}
 	public static void main(String[] args) throws IOException {
-		System.out.println(isA("toy","doll"));
-		System.out.println(isA("doll","toy"));
+		System.out.println(isA("beet","vegetable"));
+		System.out.println(isA("carrot","vegetable"));
 	}
 }
