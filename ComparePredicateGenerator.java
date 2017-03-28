@@ -115,35 +115,7 @@ public class ComparePredicateGenerator {
 		for (SemanticGraphEdge edge : numEdges) {
 			String pos = edge.getGovernor().tag(); 
 			String lemma = edge.getGovernor().lemma();
-			if (pos.contains("NN") || pos.equals("JJ")) {
-				Set<IndexedWord> desc = dependencies.descendants(edge.getGovernor());
-				String entityName = lemma;
-				for (IndexedWord word : desc) {
-					//System.out.println("aa" + word.lemma());
-					if (word.tag().equals("JJ") || word.tag().contains("NN")) { //need to generalize
-						if (dependencies.getEdge(edge.getGovernor(), word) == null)
-							continue;
-						//System.out.println(dependencies.getEdge(edge.getGovernor(), word) + "|" + edge.getGovernor() + "|" + word);
-						boolean cond1 = dependencies.getEdge(edge.getGovernor(), word).getRelation().equals(amod);
-						boolean cond2 = dependencies.getEdge(edge.getGovernor(), word).getRelation().equals(nn);
-						boolean cond3 = dependencies.getEdge(edge.getGovernor(), word).getRelation().equals(conjand);
-						if (cond1 || cond2)
-							if (!word.lemma().equals("many") && !word.lemma().equals(entityName)) {
-								entityName = word.lemma() + "_" + entityName;
-								break;
-							}
-						if (cond3) {
-							if (!word.lemma().equals(entityName)) {
-								entityName = entityName + "_" + word.lemma();
-								break;
-							}
-						}
-					}
-				}
-				ans = ans + "entType(c, " + entityName + ").\n";
-				ans = ans + "cValue(c, " + edge.getDependent().originalText() + ").\n";
-				
-			}
+			ans = ans + "cValue(c, " + edge.getDependent().originalText() + ").\n";
 			
 		}
 		for (SemanticGraphEdge e : dependencies.edgeListSorted()) {
@@ -174,37 +146,8 @@ public class ComparePredicateGenerator {
 				break;
 			}
 		}
-		List<SemanticGraphEdge> dobjEdges = dependencies.findAllRelns(r);
-		for (SemanticGraphEdge edge : dobjEdges) {
-			String pos = edge.getDependent().tag(); 
-			String lemma = edge.getDependent().lemma();
-			if (pos.contains("NN")) {
-				Set<IndexedWord> desc = dependencies.descendants(edge.getDependent());
-				String entityName = lemma;
-				for (IndexedWord word : desc) {
-					//System.out.println("aa" + word.lemma());
-					if (word.tag().equals("JJ") || word.tag().equals("NN")) { //need to generalize
-						boolean cond1, cond2;
-						try {
-							cond1 = dependencies.getEdge(edge.getGovernor(), word).getRelation().equals(GrammaticalRelation.valueOf("amod"));
-							cond2 = dependencies.getEdge(edge.getGovernor(), word).getRelation().equals(GrammaticalRelation.valueOf("nn"));
-							if (cond1 || cond2)
-								if (!word.lemma().equals("many") && !word.lemma().equals(entityName)) {
-									entityName = word.lemma() + "_" + entityName;
-									break;
-								}
-						} catch (Exception e) {
-							
-						}
-					}
-				}
-				if (!ans.contains("spend")) {
-					ans = ans + "entType(c, " + entityName + ").\n";
-					entFlag = true;
-				}
-			}
-		}
-		if (!entFlag && !ans.contains("spend") && numEdges.isEmpty()) {
+		
+		/*if (!entFlag && !ans.contains("spend") && numEdges.isEmpty()) {
 			for (String entity : entities) {
 				String check = entity.replaceAll("_", " ");
 				System.out.println(check + candidateSentence.toString());
@@ -212,7 +155,7 @@ public class ComparePredicateGenerator {
 					ans = ans + "entType(c, " + entity + ").\n";
 				}
 			}
-		}
+		}*/
 		List<SemanticGraphEdge> allEdges = dependencies.edgeListSorted();
 		for (SemanticGraphEdge edge : allEdges) {
 			if (edge.getDependent().tag().equals("NNP") && !ans.contains(edge.getDependent().originalText().toLowerCase()))
@@ -224,10 +167,10 @@ public class ComparePredicateGenerator {
 		//if (candidateSentence.toString().contains("spend"))
 			//ans = ans + "entType(g, dollar).\n";
 		ans = ans + "value(Ent, Y) :- entity(question,Ent), cValue(c, Y).\n";
-		if (numEdges.isEmpty()) {
+		/*if (numEdges.isEmpty()) {
 			
 			ans = ans + "entType(c, Y) :- entity(question,Ent), type(Ent, Y).\n";
-		}
+		}*/
 		
 		return ans;
 	}

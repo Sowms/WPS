@@ -436,7 +436,7 @@ public class SchemaIdentifier {
 		else
 			ans = ans + "0\t";
 		//altogether
-		if (wordProblem.contains("together") || wordProblem.contains("in all") || wordProblem.contains("in total") || wordProblem.contains("combined"))
+		if (wordProblem.contains("together") || wordProblem.contains("in all") || wordProblem.contains("total") || wordProblem.contains("combined"))
 			ans = ans + "1\t";
 		else
 			ans = ans + "0\t";
@@ -549,7 +549,7 @@ public class SchemaIdentifier {
 		String p8 = getVector("Sara ate 5 apples yesterday. She ate 4 apples today. How many apples did she eat?", pipeline, parser);
 		String p9 = getVector("John walked 5 km and then ran 1 km. How much did he travel?", pipeline, parser);*/
 		//String p10 = getVector("John had 5 apples altogether.He gave 2 apples to Mary. How many apples does he have now?", pipeline, parser);
-		String p10 = getVector("Stanley ran 0.4 mile and walked 0.2 mile . How much farther did Stanley run than walk ? ", pipeline, parser);
+		String p10 = getVector("Brennan had 0.25 grams of pepper . Then he used 0.16 grams of the pepper to make some scrambled eggs . How much pepper does Brennan have ? ", pipeline, parser);
 		/*System.out.println(identifySchema(p1,tree)+"|"+"GROUP");
 		System.out.println(identifySchema(p2,tree)+"|"+"COMPARE");
 		System.out.println(identifySchema(p3,tree)+"|"+"CHANGE");
@@ -560,6 +560,6 @@ public class SchemaIdentifier {
 		System.out.println(identifySchema(p8,tree)+"|"+"GROUP");
 		System.out.println(identifySchema(p9,tree)+"|"+"GROUP");
 		System.out.println(identifySchema(p10,tree)+"|"+"CHANGE");*/
-		System.out.println(identifySchema(p10,tree)+"|"+"COMPARE");
+		System.out.println(identifySchema(p10,tree)+"|"+"CHANGE");
 	}
 }

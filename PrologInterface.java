@@ -58,7 +58,7 @@ public class PrologInterface {
 	    String modelPath = DependencyParser.DEFAULT_MODEL;
 	    //String taggerPath = "edu/stanford/nlp/models/pos-tagger/english-left3words/english-left3words-distsim.tagger";
 	    DependencyParser parser = DependencyParser.loadFromModelFile(modelPath);
-	    String wp3 = "Oscar had 5 blue balloons and 4 red ballons. How many balloons did he have?";
+	    String wp3 = "Oscar had 5 blue balloons. How many balloons does Oscar have?";
 	    wp3 = wp3.replaceAll(" \\.", "\\.");
 	    wp3 = ExtractPhrases.extractPhrases(wp3, pipeline);
 	    wp3 = SchemaIdentifier.coref(wp3, pipeline);

@@ -1,10 +1,14 @@
-//import java.io.File;
+import java.io.File;
 import java.io.IOException;
 //import java.net.MalformedURLException;
 //import java.net.URL;
 //import java.util.ArrayList;
 
 
+
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.ArrayList;
 
 import edu.cmu.lti.lexical_db.ILexicalDatabase;
 import edu.cmu.lti.lexical_db.NictWordNet;
@@ -14,13 +18,13 @@ import edu.cmu.lti.lexical_db.NictWordNet;
 import edu.cmu.lti.ws4j.impl.WuPalmer;
 //import edu.cmu.lti.ws4j.impl.WuPalmer;
 import edu.cmu.lti.ws4j.util.WS4JConfiguration;
-//import edu.mit.jwi.Dictionary;
-//import edu.mit.jwi.IDictionary;
-/*import edu.mit.jwi.item.IIndexWord;
+import edu.mit.jwi.Dictionary;
+import edu.mit.jwi.IDictionary;
+import edu.mit.jwi.item.IIndexWord;
 import edu.mit.jwi.item.ISynset;
 import edu.mit.jwi.item.IWord;
 import edu.mit.jwi.item.IWordID;
-import edu.mit.jwi.item.POS;*/
+import edu.mit.jwi.item.POS;
 
 
 public class WordNetInterface {
@@ -33,6 +37,33 @@ public class WordNetInterface {
 		WS4JConfiguration.getInstance().setMFS(false);
 		double s = new WuPalmer(db).calcRelatednessOfWords(word1, word2);
 		return s;
+	}
+	public static ArrayList<ISynset> getAdjSenses(String word) throws MalformedURLException {
+		ArrayList<ISynset> ans = new ArrayList<ISynset>();
+		String wordNetDirectory = "WordNet-3.0";
+        String path = wordNetDirectory + File.separator + "dict";
+        URL url = new URL("file", null, path);      
+
+        //construct the Dictionary object and open it
+    	IDictionary dict = new Dictionary(url);
+        try {
+        	dict.open();
+        	// look up first sense of the word "dog "
+        	IIndexWord idxWord = dict.getIndexWord (word, POS.ADJECTIVE);
+        	if (idxWord == null)
+        		return ans;
+        	for (IWordID wordID : idxWord.getWordIDs()) {
+        		IWord curWord = dict.getWord (wordID);         
+        		ISynset synset = curWord.getSynset();
+        		ans.add(synset);
+        	}
+        } catch (IOException e) {
+        	
+        } finally {
+        	dict.close();
+        }
+        return ans;
+		
 	}
 	/*public static ArrayList<String> getParents(String current) throws InterruptedException {
 		NounSynset nounSynset;

@@ -19,7 +19,7 @@ public class OpenIE {
 	    StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
 
 	    // Annotate an example document.
-	    Annotation doc = new Annotation("Barabara has 1 doll more than Anne");
+	    Annotation doc = new Annotation("Marta picked 2 pumpkins . The first pumpkin weighed 4 pounds. The second pumpkin weighed 8.7 pounds.");
 	    pipeline.annotate(doc);
 
 	    // Loop over sentences in the document
@@ -28,7 +28,7 @@ public class OpenIE {
 	      Collection<RelationTriple> triples = sentence.get(NaturalLogicAnnotations.RelationTriplesAnnotation.class);
 	      // Print the triples 
 	      for (RelationTriple triple : triples) {
-	    	  System.out.println(triple);
+	    	//  System.out.println(triple);
 	        System.out.println(
 	            triple.subjectLemmaGloss() + "|" +
 	            triple.relationLemmaGloss() + "|" +

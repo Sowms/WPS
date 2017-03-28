@@ -20,46 +20,10 @@ import edu.stanford.nlp.util.CoreMap;
 
 public class GroupPredicateGenerator {
 
-	public static String getGroupPredicates(String wordProblem, StanfordCoreNLP pipeline, DependencyParser parser) {
-		String ans = "";
-		//generate typing constraints
-		LinkedHashSet<String> entities = GeneralPredicateGenerator.entities;
-		for (String entity1 : entities) {
-  			for (String entity2 : entities) {
-  				if (!entity1.equals(entity2)) {
-  					if (entity1.contains(entity2)) {
-  						ans =  ans + "class("+entity1+","+entity2+").\n";
-  					}
-  				}
-  			}
-  		}
-		boolean qFlag = false;
-		//group information
-		Annotation document = new Annotation(wordProblem);
-		pipeline.annotate(document);
-		List<CoreMap> sentences = document.get(SentencesAnnotation.class);
-		CoreMap candidateSentence = null;
-		for (CoreMap sentence : sentences) {
-			if (sentence.toString().contains(" together ") || sentence.toString().contains("in all") || sentence.toString().contains(" combined ") || sentence.toString().contains(" total")) {
-				candidateSentence = sentence;
-				break;
-			}
-		}
-		if (candidateSentence == null) {
-			for (CoreMap sentence : sentences) {
-				List<CoreLabel> tokens = sentence.get(TokensAnnotation.class);
-				for (CoreLabel token: tokens) {
-					String pos = token.tag();
-					if (pos.contains("W")) {
-						candidateSentence = sentence;
-						break;
-					}
-				}
-			}
-		}
-		if (candidateSentence == null) {
-			candidateSentence = sentences.get(sentences.size() - 1);
-		}
+	
+	public static String getPredicates(String g_id, CoreMap candidateSentence, StanfordCoreNLP pipeline, DependencyParser parser) {
+		String ans = ""; 
+		boolean qFlag;
 		List<CoreLabel> tokens = candidateSentence.get(TokensAnnotation.class);
 		for (CoreLabel token: tokens) {
 			String pos = token.tag();
@@ -68,7 +32,7 @@ public class GroupPredicateGenerator {
 				break;
 			}
 		}
-		ans = ans + "group(g).\n";
+		ans = ans + "group("+g_id+").\n";
 		SemanticGraph dependencies = new SemanticGraph(parser.predict(candidateSentence).typedDependencies());
 		GrammaticalRelation r = null;
 		for (SemanticGraphEdge e : dependencies.edgeListSorted()) {
@@ -80,19 +44,25 @@ public class GroupPredicateGenerator {
 		List<SemanticGraphEdge> nsubjEdges = dependencies.findAllRelns(r);
 		for (SemanticGraphEdge edge : nsubjEdges) {
 			if (edge.getDependent().tag().contains("NN") && !edge.getDependent().tag().equals("NNS")) {
-				ans = ans + "agent(g, "+ edge.getDependent().originalText().toLowerCase() + ").\n";
+				ans = ans + "agent("+g_id+", "+ edge.getDependent().originalText().toLowerCase() + ").\n";
 			}
 		}
 		tokens = candidateSentence.get(TokensAnnotation.class);
 		for (CoreLabel token: tokens) {
 			String pos = token.tag();
 			if (pos.contains("VB")) {
-				ans = ans + "verb(g, " + token.lemma().toLowerCase() + ").\n";
+				ans = ans + "verb("+g_id+", " + token.lemma().toLowerCase() + ").\n";
 				//break;
 			}
 		}
 		boolean entFlag = false;
-		List<SemanticGraphEdge> dobjEdges = dependencies.findAllRelns(GrammaticalRelation.valueOf("dobj"));
+		for (SemanticGraphEdge e : dependencies.edgeListSorted()) {
+			if (e.getRelation().toString().equals("dobj")) {
+				r = e.getRelation();
+				break;
+			}
+		}
+		List<SemanticGraphEdge> dobjEdges = dependencies.findAllRelns(r);
 		for (SemanticGraphEdge edge : dobjEdges) {
 			String pos = edge.getDependent().tag(); 
 			String lemma = edge.getDependent().lemma();
@@ -117,34 +87,83 @@ public class GroupPredicateGenerator {
 					}
 				}
 				if (!ans.contains("spend")) {
-					ans = ans + "entType(g, " + entityName + ").\n";
+					ans = ans + "entType("+g_id+", " + entityName + ").\n";
 					entFlag = true;
 				}
 			}
 		}
+		LinkedHashSet<String> entities = GeneralPredicateGenerator.entities;
 		if (!entFlag && !ans.contains("spend")) {
 			for (String entity : entities) {
 				String check = entity.replaceAll("_", " ");
 				System.out.println(check + candidateSentence.toString());
 				if (candidateSentence.toString().contains(check)) {
-					ans = ans + "entType(g, " + entity + ").\n";
+					ans = ans + "entType("+g_id+", " + entity + ").\n";
 				}
 			}
 		}
 		List<SemanticGraphEdge> allEdges = dependencies.edgeListSorted();
 		for (SemanticGraphEdge edge : allEdges) {
 			if (edge.getRelation().getShortName().contains("prep") && edge.getDependent().tag().equals("NNP"))
-				ans = ans + "secAgent(g, " + edge.getDependent().originalText().toLowerCase() + ").\n";
+				ans = ans + "secAgent("+g_id+", " + edge.getDependent().originalText().toLowerCase() + ").\n";
 			if (edge.getRelation().toString().contains("prep_on") || edge.getRelation().toString().contains("prep_in") || edge.getRelation().toString().contains("prep_at"))
-				ans = ans + "loc(g, " + edge.getDependent().originalText().toLowerCase() + ").\n";
+				ans = ans + "loc("+g_id+", " + edge.getDependent().originalText().toLowerCase() + ").\n";
 		}
 		
 		//if (candidateSentence.toString().contains("spend"))
 			//ans = ans + "entType(g, dollar).\n";
 		//if (qFlag) {
-			ans = ans + "value(Ent, Y) :- entity(question,Ent), gValue(g, Y).\n";
-			ans = ans + "entType(g, Y) :- entity(question,Ent), type(Ent, Y).\n";
+			ans = ans + "value(Ent, Y) :- entity(question,Ent), gValue("+g_id+", Y).\n";
+			ans = ans + "entType("+g_id+", Y) :- entity(question,Ent), type(Ent, Y).\n";
 		//}
+		
+		return ans;
+	}
+	public static String getGroupPredicates(String wordProblem, StanfordCoreNLP pipeline, DependencyParser parser) {
+		String ans = "";
+		/*generate typing constraints
+		LinkedHashSet<String> entities = GeneralPredicateGenerator.entities;
+		for (String entity1 : entities) {
+  			for (String entity2 : entities) {
+  				if (!entity1.equals(entity2)) {
+  					if (entity1.contains(entity2)) {
+  						ans =  ans + "class("+entity1+","+entity2+").\n";
+  					}
+  				}
+  			}
+  		}*/
+		boolean qFlag = false;
+		int id = 1;
+		//group information
+		Annotation document = new Annotation(wordProblem);
+		pipeline.annotate(document);
+		List<CoreMap> sentences = document.get(SentencesAnnotation.class);
+		CoreMap candidateSentence = null;
+		for (CoreMap sentence : sentences) {
+			if (sentence.toString().contains(" together ") || sentence.toString().contains("in all") || sentence.toString().contains(" combined ") || sentence.toString().contains(" total")) {
+				candidateSentence = sentence;
+				ans = ans + getPredicates("g"+id, sentence, pipeline, parser); 
+				id++;
+				break;
+			}
+		}
+		if (candidateSentence == null) {
+			for (CoreMap sentence : sentences) {
+				List<CoreLabel> tokens = sentence.get(TokensAnnotation.class);
+				for (CoreLabel token: tokens) {
+					String pos = token.tag();
+					if (pos.contains("W")) {
+						candidateSentence = sentence;
+						ans = ans + getPredicates("g"+id, sentence, pipeline, parser);
+						break;
+					}
+				}
+			}
+		}
+		if (candidateSentence == null) {
+			candidateSentence = sentences.get(sentences.size() - 1);
+			ans = ans + getPredicates("g"+id, candidateSentence, pipeline, parser);
+		}
 		
 		return ans;
 	}

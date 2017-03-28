@@ -1,4 +1,6 @@
 //import java.util.ArrayList;
+import java.io.BufferedReader;
+import java.io.FileReader;
 import java.io.IOException;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -24,6 +26,29 @@ import edu.stanford.nlp.util.CoreMap;
 
 public class GeneralPredicateGenerator {
 	public static LinkedHashSet<String> entities = new LinkedHashSet<String>();
+	public static String getQuantity(String unit) {
+		String quantity = "";
+		BufferedReader in = null;
+		try {
+			in = new BufferedReader(new FileReader("unit.txt"));
+			String line = "";
+			while ((line = in.readLine()) != null) {
+				if (line.startsWith("Convert")) {
+					quantity = line.split(" ")[1];
+				}
+				if (line.contains(unit)) {
+					in.close();
+					return quantity;
+				}
+				
+			}
+			in.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return quantity;
+	}
 	public static String generatePredicates(String wordProblem, StanfordCoreNLP pipeline, DependencyParser parser) throws IOException {
 		String ans = "";
 		entities = new LinkedHashSet<String>();
