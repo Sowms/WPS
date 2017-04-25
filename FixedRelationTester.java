@@ -42,10 +42,16 @@ public class FixedRelationTester {
 		BufferedReader in = new BufferedReader(new FileReader("vary.txt"));
 		String line = "";
 		Properties props = new Properties();
-	    props.put("annotators", "tokenize, ssplit, pos, lemma, ner,parse,dcoref");
+		props.setProperty("annotators", "tokenize,ssplit,pos,lemma,depparse,natlog,ner, parse, mention, coref, openie");
+	    props.setProperty("ner.useSUTime", "false");
 	    StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
-	    int counter = 0;
-		while ((line = in.readLine()) != null) {
+	    line = "Mike had 34 peaches at his roadside fruit dish . He went to the orchard and picked peaches to stock up . There are now 86 peaches . how many did he pick ?";
+	    //int counter = 0;
+	    if (fixedRelation(line, pipeline)) 
+			System.out.println("yes");
+	    else
+	    	System.out.println("no");
+		/*while ((line = in.readLine()) != null) {
 			System.out.println(line);
 			line = line.split("\\d+\\. ")[1];
 			if (fixedRelation(line, pipeline)) {
@@ -53,7 +59,7 @@ public class FixedRelationTester {
 				counter++;
 			}
 		}
-		System.out.println(counter);
+		System.out.println(counter);*/
 		in.close();
 	}
 }

@@ -4,6 +4,7 @@ import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -23,6 +24,7 @@ import edu.stanford.nlp.coref.CorefCoreAnnotations.CorefChainAnnotation;
 import edu.stanford.nlp.coref.data.CorefChain;
 import edu.stanford.nlp.coref.data.CorefChain.CorefMention;
 import edu.stanford.nlp.coref.data.Mention;
+import edu.stanford.nlp.ie.util.RelationTriple;
 import edu.stanford.nlp.international.Language;
 import edu.stanford.nlp.ling.CoreAnnotations;
 import edu.stanford.nlp.ling.CoreAnnotations.TextAnnotation;
@@ -32,6 +34,7 @@ import edu.stanford.nlp.ling.CoreAnnotations.PartOfSpeechAnnotation;
 import edu.stanford.nlp.ling.CoreAnnotations.SentencesAnnotation;
 import edu.stanford.nlp.ling.CoreAnnotations.TokensAnnotation;
 import edu.stanford.nlp.ling.IndexedWord;
+import edu.stanford.nlp.naturalli.NaturalLogicAnnotations;
 import edu.stanford.nlp.parser.nndep.DependencyParser;
 import edu.stanford.nlp.pipeline.Annotation;
 import edu.stanford.nlp.pipeline.StanfordCoreNLP;
@@ -40,6 +43,8 @@ import edu.stanford.nlp.semgraph.SemanticGraphCoreAnnotations.CollapsedCCProcess
 import edu.stanford.nlp.semgraph.SemanticGraphEdge;
 import edu.stanford.nlp.trees.GrammaticalRelation;
 import edu.stanford.nlp.trees.GrammaticalStructure;
+import edu.stanford.nlp.trees.Tree;
+import edu.stanford.nlp.trees.TreeCoreAnnotations.TreeAnnotation;
 import edu.stanford.nlp.util.CoreMap;
 import weka.classifiers.functions.MultilayerPerceptron;
 import weka.core.Instances;
@@ -70,7 +75,7 @@ public class SchemaIdentifier {
 						String antonym = linkAddress.split("/")[linkAddress.split("/").length -1];
 						//System.out.println(antonym+"|"+word);
 						if (question.contains(" " + antonym) && !antonym.isEmpty()) {
-							System.err.println("aaaaaaaaaa"+word+antonym);
+							//System.err.println("aaaaaaaaaa"+word+antonym);
 							return true;
 						}
 					}
@@ -231,9 +236,10 @@ public class SchemaIdentifier {
 			for (SemanticGraphEdge edge : numEdges) {
 				IndexedWord entity = edge.getGovernor();
 				Set<IndexedWord> desc = dependencies.descendants(entity);
+				//System.out.println(desc);
 				String entityName = entity.lemma();
 				for (IndexedWord word : desc) {
-					if (word.tag().equals("JJ") || word.tag().equals("NN"))
+					if (word.tag().equals("JJ") /*|| word.tag().equals("NN")*/)
 						entityName = word.originalText() + "_" + entityName;
 				}
 				entities.add(entityName);
@@ -263,9 +269,15 @@ public class SchemaIdentifier {
 			}
 			List<SemanticGraphEdge> allEdges = dependencies.edgeListSorted();
 			for (SemanticGraphEdge edge : allEdges) {
-				if (edge.getRelation().getShortName().contains("prep") && edge.getDependent().tag().equals("NNP"))
+				if (edge.getDependent().tag().equals("NNP"))
 					agents.add(edge.getDependent().lemma());
 			}
+			Collection<RelationTriple> triples = sentence.get(NaturalLogicAnnotations.RelationTriplesAnnotation.class);
+		      // Print the triples 
+		      for (RelationTriple triple : triples) {
+		    	if (triple.relationGloss().contains(" in") || triple.relationGloss().contains("from"))
+		    		agents.add(triple.objectGloss());
+		      }
 		}
 //		System.exit(0);
 		return agents;
@@ -295,6 +307,7 @@ public class SchemaIdentifier {
 		List<CoreMap> sentences = document.get(SentencesAnnotation.class);
 		ans = ans + "0\t";
 		boolean isChange = false;
+		boolean adj = false;
 		LinkedHashSet<String> tenses = new LinkedHashSet<String>();
 		//permanent alteration
 		for (CoreMap sentence : sentences) {
@@ -303,20 +316,33 @@ public class SchemaIdentifier {
 	    		String pos = token.tag();
 	    		String lemma = token.get(LemmaAnnotation.class);
 	    		if (pos.contains("VB")) {
-	    			System.out.println(lemma + pos);
-	    			if (pos.equals("VBD") || pos.equals("VBN"))
+	    			//System.out.println(lemma + pos);
+	    			/*if (pos.equals("VBD") || pos.equals("VBN"))
 	    				tenses.add("past");
 	    			else
-	    				tenses.add("present");
+	    				tenses.add("present");*/
 	    			String word = lemma;
 	    			if (!(word.equals("have") || word.equals("has") || word.equals("does") || word.equals("is") || word.equals("be") || word.equals("do") || word.equals("did") || word.equals("had") || word.equals("are")))
 	    				isChange = true;
-	    			break;
+	    			//break;
 	    			}
 	    			
 	    		}
 	    		//if (isChange)
 	    		//break;
+	    }
+		for (CoreMap sentence : sentences) {
+	    	List<CoreLabel> tokens = sentence.get(TokensAnnotation.class);
+	    	for (CoreLabel token: tokens) {
+	    		String pos = token.tag();
+	    		//String lemma = token.get(LemmaAnnotation.class);
+	    		if (pos.contains("RBR") || pos.contains("JJR")) {
+	    			adj = true;
+	    			
+	    		}
+	    		//if (isChange)
+	    		//break;
+	    	}
 	    }
 	    if (isChange)
 			ans = ans + "1\t";
@@ -336,7 +362,7 @@ public class SchemaIdentifier {
 	  			for (String entity2 : entities1) {
 	  				if (!entity1.equals(entity2)) {
 	  					if (entity1.contains(entity2) || entity2.contains(entity1)) {
-	  						System.out.println(entity1 + "|" + entity2);
+	  						//System.out.println(entity1 + "|" + entity2);
 	  						ans =  ans + "1\t";
 	  						classFlag = true;
 	  						break;
@@ -353,6 +379,7 @@ public class SchemaIdentifier {
 	  				for (String entity2 : commonNouns) {
 	  					if (!entity1.equals(entity2)) {
 	  						if (IsATester.isA(entity1, entity2)) {
+	  							//System.out.println(entity1 + "|" + entity2);
 	  							ans =  ans + "1\t";
 	  							classFlag = true;
 	  							break;
@@ -368,7 +395,7 @@ public class SchemaIdentifier {
 	  				for (String entity2 : entities) {
 	  					if (!entity1.equals(entity2)) {
 	  						if (WordNetInterface.compute(entity1, entity2) >= 0.85) {
-	  							System.out.println(entity1 + "|" + entity2);
+	  							//System.out.println(entity1 + "|" + entity2);
 	  							ans =  ans + "1\t";
 	  							wordNetFlag = true;
 	  							break;
@@ -421,7 +448,7 @@ public class SchemaIdentifier {
 	    	ans = ans + "0\t";
 	    
 		//each every per equally
-		if (wordProblem.contains("each") || wordProblem.contains("every") || wordProblem.contains("per") || wordProblem.contains("equally"))
+		if (wordProblem.contains(" each") || wordProblem.contains(" every") || wordProblem.contains(" per") || wordProblem.contains(" equally"))
 			ans = ans + "1\t";
 		else
 			ans = ans + "0\t";
@@ -441,7 +468,7 @@ public class SchemaIdentifier {
 		else
 			ans = ans + "0\t";
 		//more/less
-		if (wordProblem.contains("more") || wordProblem.contains("less") || wordProblem.contains("er "))
+		if (wordProblem.contains("more") || wordProblem.contains("less") || adj)
 			ans = ans + "1\t";
 		else
 			ans = ans + "0\t";
@@ -461,12 +488,33 @@ public class SchemaIdentifier {
 		else
 			ans = ans + "0\t";
 		//changeInTime
-		System.out.println(tenses);
+		boolean qFlag = false;
+		for (CoreMap sentence : sentences) {
+	    	List<CoreLabel> tokens = sentence.get(TokensAnnotation.class);
+	    	for (CoreLabel token: tokens) {
+	    		String pos = token.tag();
+	    		//String lemma = token.get(LemmaAnnotation.class);
+	    		if (pos.startsWith("W"))
+	    			qFlag = true;
+	    		if (pos.contains("VBD") || pos.contains("VBN")) {
+	    			tenses.add("past");
+	    			if (qFlag)
+	    				break;
+	    		} else if (pos.contains("VB")) {
+	    			tenses.add("present");
+	    			if (qFlag)
+	    				break;
+	    		}
+	    		//if (isChange)
+	    		//break;
+	    	}
+	    }
+		
 		if (tenses.size() != 1)
 			ans = ans + "1\t";
 		else
 			ans = ans + "0\t";
-		System.out.println(ans.replace("\t", ""));
+		//System.out.println(ans.replace("\t", ""));
 		return ans+"?\n";
 	}
 	public static boolean checkFile(String unit) {
@@ -520,18 +568,18 @@ public class SchemaIdentifier {
 	}
 	public static void main(String[] args) throws Exception {
 		Properties props = new Properties();
-		props.setProperty("annotators", "tokenize, ssplit, pos, depparse, lemma, ner, parse, mention, coref");
-		props.setProperty("ner.useSUTime", "false");
-		StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
-	    DataSource source = new DataSource("schema.csv");
+		props.setProperty("annotators", "tokenize,ssplit,pos,lemma,depparse,natlog,ner, parse, mention, coref, openie");
+	    props.setProperty("ner.useSUTime", "false");
+	    StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
+		DataSource source = new DataSource("schema.csv");
 		Instances train = source.getDataSet();
 		// setting class attribute
 		train.setClassIndex(train.numAttributes() - 1);
-		String[] options = new String[2];
-		options[0] = "-H";            // hidden layers
-		options[1] = "33,33";
+		//String[] options = new String[2];
+		//options[0] = "-H";            // hidden layers
+		//options[1] = "33,33";
 		MultilayerPerceptron tree = new MultilayerPerceptron();         // new instance of tree
-		tree.setOptions(options);     // set the options
+		//tree.setOptions(options);     // set the options
 		tree.buildClassifier(train);
 		//String test = getVector("Jason joined his school 's band . He bought a flute for $ 142.46 , a music tool for $ 8.89 , and a song book for $ 7 . How much did Jason spend at the music store ?", pipeline);
 		//System.out.println(identifySchema(test,tree)+"|"+"GROUP");
@@ -549,7 +597,7 @@ public class SchemaIdentifier {
 		String p8 = getVector("Sara ate 5 apples yesterday. She ate 4 apples today. How many apples did she eat?", pipeline, parser);
 		String p9 = getVector("John walked 5 km and then ran 1 km. How much did he travel?", pipeline, parser);*/
 		//String p10 = getVector("John had 5 apples altogether.He gave 2 apples to Mary. How many apples does he have now?", pipeline, parser);
-		String p10 = getVector("Brennan had 0.25 grams of pepper . Then he used 0.16 grams of the pepper to make some scrambled eggs . How much pepper does Brennan have ? ", pipeline, parser);
+		String p10 = getVector("Tom purchased a football game for $ 14.02 , a strategy game for $ 9.46 , and a Batman game for $ 12.04 . How much did Tom spend on video games ? ", pipeline, parser);
 		/*System.out.println(identifySchema(p1,tree)+"|"+"GROUP");
 		System.out.println(identifySchema(p2,tree)+"|"+"COMPARE");
 		System.out.println(identifySchema(p3,tree)+"|"+"CHANGE");
@@ -560,6 +608,6 @@ public class SchemaIdentifier {
 		System.out.println(identifySchema(p8,tree)+"|"+"GROUP");
 		System.out.println(identifySchema(p9,tree)+"|"+"GROUP");
 		System.out.println(identifySchema(p10,tree)+"|"+"CHANGE");*/
-		System.out.println(identifySchema(p10,tree)+"|"+"CHANGE");
+		System.out.println(identifySchema(p10,tree)+"|"+"GROUP");
 	}
 }

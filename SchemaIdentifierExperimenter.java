@@ -23,18 +23,18 @@ public class SchemaIdentifierExperimenter {
 		BufferedReader br1 = null, br2 = null;
 		BufferedWriter br = null;
 		Properties props = new Properties();
-		props.setProperty("annotators", "tokenize, ssplit, pos, depparse, lemma, ner, parse, mention, coref");
-		props.setProperty("ner.useSUTime", "false");
-		StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
+		props.setProperty("annotators", "tokenize,ssplit,pos,lemma,depparse,natlog,ner, parse, mention, coref, openie");
+	    props.setProperty("ner.useSUTime", "false");
+	    StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
 	    DataSource source = new DataSource("schema.csv");
 	    // setting class attribute
 	    Instances train = source.getDataSet();
 	 	train.setClassIndex(train.numAttributes() - 1);
-	 	String[] options = new String[2];
-	 	options[0] = "-H";            // hidden layers
-	 	options[1] = "33,33";
+	 	//String[] options = new String[1];
+	 	//options[0] = "-H";            // hidden layers
+	 	//options[1] = "33,33";
 	 	MultilayerPerceptron tree = new MultilayerPerceptron();         // new instance of tree
-	 	tree.setOptions(options);     // set the options
+	 	//tree.setOptions(options);     // set the options
 	 	tree.buildClassifier(train);
 	 	String modelPath = DependencyParser.DEFAULT_MODEL;
 	 	DependencyParser parser = DependencyParser.loadFromModelFile(modelPath);
@@ -51,11 +51,12 @@ public class SchemaIdentifierExperimenter {
 					sysAns = SchemaIdentifier.identifySchema(p, tree);
 				}catch(Exception e) {
 				}
+				total++;
 				if (checkAns(sysAns,ans))
 					count++;
 				else
-					br.write(ques+"\n"+sysAns+"|"+ans+"\n");
-				total++;
+					br.write(total +" " + ques+"\n"+sysAns+"|"+ans+"\n");
+				
 			}
  			System.out.println(count+"|"+total);
 		} catch (IOException e) {

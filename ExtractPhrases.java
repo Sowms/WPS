@@ -17,7 +17,7 @@ public class ExtractPhrases {
 	    props.setProperty("annotators", "tokenize, ssplit, pos, depparse, lemma, ner, parse, mention, coref");
 	    props.setProperty("ner.useSUTime", "false");
 	    StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
-	    String wordProblem = "Anne has 5 dolls and Barbara has 6 balls. How many toys do they have altogether?";
+	    String wordProblem = "Tom has 30 violet balloons , he gave Fred 16 of the balloons . How many violet balloons does he now have ? ";
 	    wordProblem = wordProblem.replaceAll(" \\.", "\\.");
 	    System.out.println(extractPhrases(wordProblem, pipeline));
 		
@@ -32,15 +32,17 @@ public class ExtractPhrases {
 		List<CoreMap> sentences = document.get(SentencesAnnotation.class);
 		for (CoreMap sentence : sentences) {
 			Tree tree = sentence.get(TreeAnnotation.class);
-			System.out.println(tree);
+			//System.out.println(tree.pennString());
 			for (Tree subtree: tree) {
 				if(subtree.label().value().equals("S")) {
+					//System.out.println(subtree.yieldWords());
 					String yield = subtree.yieldWords().toString().replaceAll(", "," ");
 					yield = yield.replaceAll("\\[", "");
 					yield = yield.replaceAll("\\]", "");
 					yield = yield.replaceAll(" \\.", "\\.");
+					//System.out.println(ans + "|" + yield);
 					if (ans.replaceAll(" ", "").contains(yield.replaceAll(" ", "")))
-						continue;
+						ans = yield;
 					temp = temp.replace(yield, "");
 					//System.out.println("T" + temp);
 					if (!yield.endsWith("."))
@@ -48,6 +50,9 @@ public class ExtractPhrases {
 					ans = ans + yield + " ";
 					//System.out.println(yield);
 			    }
+				//if(subtree.label().value().equals("VP")) {
+					//System.out.println(subtree.pennString());
+				//}
 			}
 		}
 		//System.out.println(ans + " " + temp);
